@@ -1,0 +1,587 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instagram Bigram Network</title>
+<script src="vis-network.min.js"></script>
+<style>
+  :root {
+    --ink: #172033;
+    --muted: #6b7280;
+    --panel: rgba(255, 255, 255, 0.92);
+    --line: rgba(148, 163, 184, 0.28);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    background: #f7f9fc;
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  body { padding: 24px; }
+
+  .network-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+    margin: 0 0 14px;
+    padding: 0 2px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .network-header__title {
+    margin: 0;
+    color: #111827;
+    font-size: 32px;
+    font-weight: 780;
+    letter-spacing: 0;
+    line-height: 1.12;
+  }
+
+  .network-header__meta {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .network-header__badge {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.72);
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .chart-shell {
+    position: relative;
+    height: calc(100vh - 128px);
+    min-height: 560px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: radial-gradient(circle at 20% 10%, rgba(29, 78, 216, 0.05), transparent 24%), linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  }
+
+  #network {
+    width: 100%;
+    height: 100%;
+  }
+
+  .network-toolbar {
+    position: fixed;
+    top: 42px;
+    right: 30px;
+    z-index: 10;
+    width: 288px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(14px);
+  }
+
+  .network-toolbar__title {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 750;
+    letter-spacing: 0;
+  }
+
+  .network-toolbar__subtitle {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .control-row { margin-bottom: 12px; }
+
+  .control-row label {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  .control-row input[type="range"] { width: 100%; accent-color: #2563eb; }
+
+  .toolbar-button, .emotion-button, .word-list__button {
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+    font: inherit;
+    transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease, background 140ms ease, border-color 140ms ease;
+  }
+
+  .toolbar-button:hover, .emotion-button:hover, .word-list__button:hover { transform: translateY(-1px); }
+
+  .toolbar-button {
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 10px 10px;
+    background: #172033;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .emotion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .emotion-button {
+    min-height: 34px;
+    padding: 7px 10px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .emotion-button.is-active { box-shadow: 0 0 0 2px #172033 inset; }
+
+  .emotion-button[data-emotion="none"] {
+    grid-column: 1 / -1;
+    background: #64748b;
+    text-align: center;
+  }
+
+  .word-list-panel {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .word-list-panel__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .word-list-panel__title { font-size: 15px; font-weight: 750; }
+  .word-list-panel__count { color: var(--muted); font-size: 13px; white-space: nowrap; }
+
+  .word-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 150px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+  }
+
+  .word-list__item { display: contents; }
+
+  .word-list__button {
+    max-width: 100%;
+    padding: 5px 8px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(248, 250, 252, 0.88);
+    color: #253044;
+    font-size: 13px;
+    line-height: 1.2;
+    text-align: left;
+  }
+
+  .word-list__button:hover, .word-list__button.is-selected {
+    border-color: rgba(37, 99, 235, 0.46);
+    background: rgba(219, 234, 254, 0.9);
+    color: #1d4ed8;
+  }
+
+  .word-list__button span { color: var(--muted); }
+
+  .loading-note {
+    position: absolute;
+    left: 24px;
+    bottom: 20px;
+    color: var(--muted);
+    font-size: 13px;
+    pointer-events: none;
+  }
+
+  @media (max-width: 720px) {
+    body { padding: 12px; }
+    .network-header { align-items: start; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-bottom: 10px; }
+    .network-header__title { font-size: 24px; }
+    .network-header__meta { font-size: 13px; }
+    .chart-shell { height: calc(100vh - 116px); min-height: 520px; }
+    .network-toolbar { top: auto; right: 12px; bottom: 12px; left: 12px; width: auto; }
+    .control-row { display: none; }
+    .emotion-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .word-list { max-height: 90px; }
+  }
+</style>
+</head>
+<body>
+<header class="network-header" aria-label="Chart title">
+  <div>
+    <h1 class="network-header__title">Instagram Bigram Network</h1>
+    <p class="network-header__meta">NRC emotion filter for exploring word pairs, sentiment clusters, and connected terms.</p>
+  </div>
+  <div class="network-header__badge">NRC Emotion Filter</div>
+</header>
+
+<main class="chart-shell">
+  <div id="network"></div>
+  <div class="loading-note" id="loadingNote">Loading network...</div>
+</main>
+
+<aside class="network-toolbar" aria-label="Network controls">
+  <h2 class="network-toolbar__title">Bigram Emotion Network</h2>
+  <p class="network-toolbar__subtitle">Filter by NRC emotion. Node size reflects word frequency; edge width reflects bigram count.</p>
+
+  <div class="control-row">
+    <label for="modernRepulsion"><span>Repulsion</span><b id="modernRepVal">-200</b></label>
+    <input id="modernRepulsion" type="range" min="-500" max="-10" value="-200" step="10">
+  </div>
+
+  <div class="control-row">
+    <label for="modernLength"><span>Link length</span><b id="modernLenVal">60</b></label>
+    <input id="modernLength" type="range" min="30" max="300" value="60" step="10">
+  </div>
+
+  <button class="toolbar-button" type="button" id="modernRelayout">Re-layout network</button>
+
+  <div class="emotion-grid" id="modernEmotionGrid">
+    <button class="emotion-button" type="button" data-emotion="anger" style="background:#dc2626;">Anger</button>
+    <button class="emotion-button" type="button" data-emotion="fear" style="background:#7c3aed;">Fear</button>
+    <button class="emotion-button" type="button" data-emotion="sadness" style="background:#2563eb;">Sadness</button>
+    <button class="emotion-button" type="button" data-emotion="disgust" style="background:#16a34a;">Disgust</button>
+    <button class="emotion-button" type="button" data-emotion="surprise" style="background:#d97706;">Surprise</button>
+    <button class="emotion-button" type="button" data-emotion="anticipation" style="background:#ea580c;">Anticipation</button>
+    <button class="emotion-button" type="button" data-emotion="joy" style="background:#ca8a04;">Joy</button>
+    <button class="emotion-button" type="button" data-emotion="trust" style="background:#0d9488;">Trust</button>
+    <button class="emotion-button is-active" type="button" data-emotion="none">Show all</button>
+  </div>
+
+  <section class="word-list-panel" aria-live="polite">
+    <div class="word-list-panel__header">
+      <div class="word-list-panel__title">Matched words</div>
+      <div class="word-list-panel__count" id="modernWordCount">0 words</div>
+    </div>
+    <ul class="word-list" id="modernWordList"></ul>
+  </section>
+</aside>
+
+<script id="network-data" type="application/json">{"nodes":{"id":["community","social","support","bad","media","kindly","time","worst","permanently","incorrect","meta","technical","suspending","restore","correct","verification","review","major","video","intentionally","suspended","completely","forgotten","multiple","incredibly","valid","experiencing","password","email","proper","route","user","login","id","unexpected","genuine","customer","content","nice","restyle","bar","amazing","cheers","manual","watch","watching","accounts","appeal","love","star","error","home","sharing","sincerely","extremely","scrolling","selfie","internet","real","yourname","clearing","disabling","disappointing","days","forgot","personal","banning","respectfully","wrong","bina","stop","profile","strictly","black","feels","ai","automated","fake","free","instant","repost","suddenly","whatsapp","human","share","stay","blue","instgram","kr","reels","scroll","upload","auto","beautiful","call","cleared","daily","identity","losing","mind","send","story","voice","guidelines","team","experience","platform","request","pass","disabled","issues","access","code","analyse","violated","yesterday","locked","times","frustrating","reason","viral","thinking","fails","friendly","bugs","suspend","system","standards","users","explanation","creator","application","option","process","rating","waste","creation","occurred","page","platforms","photos","apologize","violate","connection","userid","cache","ago","address","memories","creators","service","kisi","issue","picture","person","follow","screen","unfair","apps","verified","feature","band","button","status","connected","tick","disappointed","fix","diya","stories","wasting","videos","filter","life","card","blowing","messages","message"],"label":["community","social","support","bad","media","kindly","time","worst","permanently","incorrect","meta","technical","suspending","restore","correct","verification","review","major","video","intentionally","suspended","completely","forgotten","multiple","incredibly","valid","experiencing","password","email","proper","route","user","login","id","unexpected","genuine","customer","content","nice","restyle","bar","amazing","cheers","manual","watch","watching","accounts","appeal","love","star","error","home","sharing","sincerely","extremely","scrolling","selfie","internet","real","yourname","clearing","disabling","disappointing","days","forgot","personal","banning","respectfully","wrong","bina","stop","profile","strictly","black","feels","ai","automated","fake","free","instant","repost","suddenly","whatsapp","human","share","stay","blue","instgram","kr","reels","scroll","upload","auto","beautiful","call","cleared","daily","identity","losing","mind","send","story","voice","guidelines","team","experience","platform","request","pass","disabled","issues","access","code","analyse","violated","yesterday","locked","times","frustrating","reason","viral","thinking","fails","friendly","bugs","suspend","system","standards","users","explanation","creator","application","option","process","rating","waste","creation","occurred","page","platforms","photos","apologize","violate","connection","userid","cache","ago","address","memories","creators","service","kisi","issue","picture","person","follow","screen","unfair","apps","verified","feature","band","button","status","connected","tick","disappointed","fix","diya","stories","wasting","videos","filter","life","card","blowing","messages","message"],"value":[6,6,15,6,12,9,12,3,3,3,6,9,6,3,3,9,12,6,9,6,12,3,3,6,3,3,3,18,9,9,6,6,3,15,3,3,6,9,9,9,6,3,3,3,3,3,18,3,3,3,6,3,3,3,6,6,6,3,9,6,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,6,3,3,3,3,3,6,3,9,3,3,3,3,3,15,6,3,3,3,6,3,3,3,3,3,3,3,3,3,6,18,3,6,3,6,3,6,3,3,3,3,3,3,6,6,3,3,3,3,3,3,9,3,6,3,3,6,3,3,3,3,3,3,3,3,9,3,3,3,3,6,3,3,3,3,3,3,3,3,3,3,3,3,3,3,6,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],"main_emotion":["none","none","none","anger","none","none","anticipation","none","none","none","none","none","none","none","none","trust","none","none","none","none","none","none","fear","none","none","none","none","none","none","none","none","none","none","none","anticipation","trust","none","joy","none","none","none","none","none","trust","anticipation","none","trust","anticipation","joy","anticipation","sadness","none","none","none","none","none","none","none","trust","none","none","none","sadness","none","none","trust","none","none","none","none","none","none","none","none","none","none","none","none","none","none","none","surprise","none","none","anticipation","none","sadness","none","none","none","none","none","none","joy","none","none","anticipation","none","anger","none","none","none","none","none","trust","none","none","none","none","fear","none","none","none","none","none","none","none","none","none","none","none","none","none","anticipation","none","none","trust","none","none","none","none","none","none","none","anger","disgust","none","none","none","none","none","sadness","none","none","none","none","none","none","none","none","none","none","none","none","none","none","none","anger","none","trust","none","none","none","none","none","none","anger","none","none","none","disgust","none","none","none","none","none","none","none"],"emotions":["none","none","none","anger,disgust,fear,sadness","none","none","anticipation","none","none","none","none","none","none","none","none","trust","none","none","none","none","none","none","fear,sadness","none","none","none","none","none","none","none","none","none","none","none","anticipation,fear,joy,surprise","trust","none","joy,trust","none","none","none","none","none","trust","anticipation,fear","none","trust","anticipation","joy","anticipation,joy,trust","sadness","none","none","none","none","none","none","none","trust","none","none","none","sadness","none","none","trust","none","none","none","none","none","none","none","none","none","none","none","none","none","none","none","surprise","none","none","anticipation,joy,trust","none","sadness","none","none","none","none","none","none","joy","none","none","anticipation","none","anger,sadness","none","none","none","none","none","trust","none","none","none","none","fear,sadness","none","none","none","none","none","none","none","none","none","none","none","none","none","anticipation,joy,trust","none","none","trust","none","none","none","none","none","none","none","anger,fear,sadness","disgust","none","none","none","none","none","sadness,trust","none","none","none","none","none","none","none","none","none","none","none","none","none","none","none","anger,disgust,sadness","none","trust","none","none","none","none","none","none","anger,disgust,sadness","none","none","none","disgust,fear,sadness","none","none","none","none","none","none","none"],"color.background":["#bdc3c7","#bdc3c7","#bdc3c7","#e74c3c","#bdc3c7","#bdc3c7","#e67e22","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#1abc9c","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#8e44ad","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#e67e22","#1abc9c","#bdc3c7","#f1c40f","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#1abc9c","#e67e22","#bdc3c7","#1abc9c","#e67e22","#f1c40f","#e67e22","#3498db","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#1abc9c","#bdc3c7","#bdc3c7","#bdc3c7","#3498db","#bdc3c7","#bdc3c7","#1abc9c","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#f39c12","#bdc3c7","#bdc3c7","#e67e22","#bdc3c7","#3498db","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#f1c40f","#bdc3c7","#bdc3c7","#e67e22","#bdc3c7","#e74c3c","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#1abc9c","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#8e44ad","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#e67e22","#bdc3c7","#bdc3c7","#1abc9c","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#e74c3c","#27ae60","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#3498db","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#e74c3c","#bdc3c7","#1abc9c","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#e74c3c","#bdc3c7","#bdc3c7","#bdc3c7","#27ae60","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7","#bdc3c7"],"color.border":["white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white"],"color.highlight.background":["#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12","#f39c12"],"font.size":[20,20,20,20,20,20,20,14,14,14,20,20,20,14,14,20,20,20,20,20,20,14,14,20,14,14,14,20,20,20,20,20,14,20,14,14,20,20,20,20,20,14,14,14,14,14,20,14,14,14,20,14,14,14,20,20,20,14,20,20,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,20,14,14,14,14,14,20,14,20,14,14,14,14,14,20,20,14,14,14,20,14,14,14,14,14,14,14,14,14,20,20,14,20,14,20,14,20,14,14,14,14,14,14,20,20,14,14,14,14,14,14,20,14,20,14,14,20,14,14,14,14,14,14,14,14,20,14,14,14,14,20,14,14,14,14,14,14,14,14,14,14,14,14,14,14,20,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14],"font.color":["#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50","#2c3e50"],"shadow":[true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true]},"edges":{"from":["community","social","support","bad","media","kindly","time","worst","permanently","incorrect","meta","technical","suspending","restore","correct","verification","review","major","video","intentionally","suspended","completely","forgotten","multiple","incredibly","valid","experiencing","password","video","email","proper","route","user","login","id","support","community","id","unexpected","genuine","customer","proper","content","nice","restyle","proper","bar","amazing","cheers","manual","watch","watching","accounts","appeal","love","star","time","video","content","error","home","media","sharing","sincerely","extremely","intentionally","scrolling","selfie","internet","real","yourname","clearing","disabling","disappointing","days","email","forgot","personal","user","banning","content","respectfully","wrong","customer","nice","bina","stop","technical","profile","real","strictly","black","feels","media","meta","multiple","restyle","ai","automated","bad","fake","free","id","instant","repost","suddenly","whatsapp","human","human","kindly","share","stay","blue","extremely","instgram","kindly","kr","real","reels","scroll","suddenly","time","upload","auto","beautiful","call","cleared","daily","email","id","identity","losing","mind","nice","send","story","voice"],"to":["guidelines","media","team","experience","platform","request","pass","experience","disabled","password","ai","issues","accounts","access","password","code","analyse","technical","call","violated","yesterday","locked","password","times","frustrating","reason","major","route","viral","thinking","reason","fails","friendly","bugs","suspend","system","standards","suspended","error","users","support","explanation","creator","application","option","support","bar","experience","yourname","review","reels","reels","suspended","process","scrolling","rating","waste","selfie","creation","occurred","page","platforms","photos","apologize","frustrating","violate","reels","verification","connection","users","userid","cache","accounts","experience","ago","address","password","memories","experience","accounts","creators","request","password","service","experience","kisi","suspending","issue","picture","person","follow","screen","unfair","apps","verified","accounts","feature","system","system","application","accounts","time","band","feature","button","disabled","status","review","support","review","photos","connected","tick","disappointed","team","fix","diya","human","stories","reels","suspended","wasting","videos","scroll","photos","filter","cache","life","id","card","verification","access","blowing","social","messages","restyle","message"],"n":[847,500,109,108,89,88,87,81,77,73,73,67,65,62,60,58,57,56,55,52,51,50,49,49,48,48,47,45,45,44,44,44,43,41,40,40,39,39,39,37,36,36,35,35,35,34,32,31,31,31,31,31,29,29,29,29,29,29,28,28,28,28,28,28,27,27,27,27,26,26,26,25,25,25,24,24,24,24,24,23,23,23,23,22,22,21,21,21,20,20,20,19,19,19,19,19,19,18,18,18,18,18,18,18,18,18,18,17,17,17,17,17,16,16,16,16,16,16,16,16,16,16,16,15,15,15,15,15,15,15,15,15,15,15,15,15,15],"width":[8,5.080528846153846,1.790865384615385,1.782451923076923,1.622596153846154,1.614182692307692,1.605769230769231,1.555288461538461,1.521634615384615,1.487980769230769,1.487980769230769,1.4375,1.420673076923077,1.395432692307692,1.378605769230769,1.361778846153846,1.353365384615385,1.344951923076923,1.336538461538462,1.311298076923077,1.302884615384615,1.294471153846154,1.286057692307692,1.286057692307692,1.277644230769231,1.277644230769231,1.269230769230769,1.252403846153846,1.252403846153846,1.243990384615385,1.243990384615385,1.243990384615385,1.235576923076923,1.21875,1.210336538461539,1.210336538461539,1.201923076923077,1.201923076923077,1.201923076923077,1.185096153846154,1.176682692307692,1.176682692307692,1.168269230769231,1.168269230769231,1.168269230769231,1.159855769230769,1.143028846153846,1.134615384615385,1.134615384615385,1.134615384615385,1.134615384615385,1.134615384615385,1.117788461538461,1.117788461538461,1.117788461538461,1.117788461538461,1.117788461538461,1.117788461538461,1.109375,1.109375,1.109375,1.109375,1.109375,1.109375,1.100961538461539,1.100961538461539,1.100961538461539,1.100961538461539,1.092548076923077,1.092548076923077,1.092548076923077,1.084134615384615,1.084134615384615,1.084134615384615,1.075721153846154,1.075721153846154,1.075721153846154,1.075721153846154,1.075721153846154,1.067307692307692,1.067307692307692,1.067307692307692,1.067307692307692,1.058894230769231,1.058894230769231,1.050480769230769,1.050480769230769,1.050480769230769,1.042067307692308,1.042067307692308,1.042067307692308,1.033653846153846,1.033653846153846,1.033653846153846,1.033653846153846,1.033653846153846,1.033653846153846,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.025240384615385,1.016826923076923,1.016826923076923,1.016826923076923,1.016826923076923,1.016826923076923,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1.008413461538461,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"color":["#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf","#aec6cf"],"smooth":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"title":["community ??guidelines  (n=847)","social ??media  (n=500)","support ??team  (n=109)","bad ??experience  (n=108)","media ??platform  (n=89)","kindly ??request  (n=88)","time ??pass  (n=87)","worst ??experience  (n=81)","permanently ??disabled  (n=77)","incorrect ??password  (n=73)","meta ??ai  (n=73)","technical ??issues  (n=67)","suspending ??accounts  (n=65)","restore ??access  (n=62)","correct ??password  (n=60)","verification ??code  (n=58)","review ??analyse  (n=57)","major ??technical  (n=56)","video ??call  (n=55)","intentionally ??violated  (n=52)","suspended ??yesterday  (n=51)","completely ??locked  (n=50)","forgotten ??password  (n=49)","multiple ??times  (n=49)","incredibly ??frustrating  (n=48)","valid ??reason  (n=48)","experiencing ??major  (n=47)","password ??route  (n=45)","video ??viral  (n=45)","email ??thinking  (n=44)","proper ??reason  (n=44)","route ??fails  (n=44)","user ??friendly  (n=43)","login ??bugs  (n=41)","id ??suspend  (n=40)","support ??system  (n=40)","community ??standards  (n=39)","id ??suspended  (n=39)","unexpected ??error  (n=39)","genuine ??users  (n=37)","customer ??support  (n=36)","proper ??explanation  (n=36)","content ??creator  (n=35)","nice ??application  (n=35)","restyle ??option  (n=35)","proper ??support  (n=34)","bar ??bar  (n=32)","amazing ??experience  (n=31)","cheers ??yourname  (n=31)","manual ??review  (n=31)","watch ??reels  (n=31)","watching ??reels  (n=31)","accounts ??suspended  (n=29)","appeal ??process  (n=29)","love ??scrolling  (n=29)","star ??rating  (n=29)","time ??waste  (n=29)","video ??selfie  (n=29)","content ??creation  (n=28)","error ??occurred  (n=28)","home ??page  (n=28)","media ??platforms  (n=28)","sharing ??photos  (n=28)","sincerely ??apologize  (n=28)","extremely ??frustrating  (n=27)","intentionally ??violate  (n=27)","scrolling ??reels  (n=27)","selfie ??verification  (n=27)","internet ??connection  (n=26)","real ??users  (n=26)","yourname ??userid  (n=26)","clearing ??cache  (n=25)","disabling ??accounts  (n=25)","disappointing ??experience  (n=25)","days ??ago  (n=24)","email ??address  (n=24)","forgot ??password  (n=24)","personal ??memories  (n=24)","user ??experience  (n=24)","banning ??accounts  (n=23)","content ??creators  (n=23)","respectfully ??request  (n=23)","wrong ??password  (n=23)","customer ??service  (n=22)","nice ??experience  (n=22)","bina ??kisi  (n=21)","stop ??suspending  (n=21)","technical ??issue  (n=21)","profile ??picture  (n=20)","real ??person  (n=20)","strictly ??follow  (n=20)","black ??screen  (n=19)","feels ??unfair  (n=19)","media ??apps  (n=19)","meta ??verified  (n=19)","multiple ??accounts  (n=19)","restyle ??feature  (n=19)","ai ??system  (n=18)","automated ??system  (n=18)","bad ??application  (n=18)","fake ??accounts  (n=18)","free ??time  (n=18)","id ??band  (n=18)","instant ??feature  (n=18)","repost ??button  (n=18)","suddenly ??disabled  (n=18)","whatsapp ??status  (n=18)","human ??review  (n=17)","human ??support  (n=17)","kindly ??review  (n=17)","share ??photos  (n=17)","stay ??connected  (n=17)","blue ??tick  (n=16)","extremely ??disappointed  (n=16)","instgram ??team  (n=16)","kindly ??fix  (n=16)","kr ??diya  (n=16)","real ??human  (n=16)","reels ??stories  (n=16)","scroll ??reels  (n=16)","suddenly ??suspended  (n=16)","time ??wasting  (n=16)","upload ??videos  (n=16)","auto ??scroll  (n=15)","beautiful ??photos  (n=15)","call ??filter  (n=15)","cleared ??cache  (n=15)","daily ??life  (n=15)","email ??id  (n=15)","id ??card  (n=15)","identity ??verification  (n=15)","losing ??access  (n=15)","mind ??blowing  (n=15)","nice ??social  (n=15)","send ??messages  (n=15)","story ??restyle  (n=15)","voice ??message  (n=15)"]},"nodesToDataframe":true,"edgesToDataframe":true,"options":{"width":"100%","height":"100%","nodes":{"shape":"dot"},"manipulation":{"enabled":false},"physics":{"solver":"forceAtlas2Based","minVelocity":0.5,"stabilization":{"enabled":true,"iterations":300,"fit":true},"forceAtlas2Based":{"gravitationalConstant":-200,"springLength":60,"springConstant":0.1,"damping":0.3}},"interaction":{"hover":true,"dragNodes":true,"dragView":true,"tooltipDelay":100,"zoomView":true,"zoomSpeed":1},"layout":{"randomSeed":42}},"groups":null,"width":"100%","height":"100vh","idselection":{"enabled":false,"style":"width: 150px; height: 26px","useLabels":true,"main":"Select by id"},"byselection":{"enabled":false,"style":"width: 150px; height: 26px","multiple":false,"hideColor":"rgba(200,200,200,0.5)","highlight":false},"main":{"text":"Instagram Bigram Network - NRC Emotion Filter","style":"font-family:sans-serif; font-size:20px; font-weight:bold;"},"submain":null,"footer":null,"background":"#ffffff","highlight":{"enabled":true,"hoverNearest":true,"degree":1,"algorithm":"all","hideColor":"rgba(200,200,200,0.5)","labelOnly":true},"collapse":{"enabled":false,"fit":false,"resetHighlight":true,"clusterOptions":null,"keepCoord":true,"labelSuffix":"(cluster)"},"tooltipStay":300,"tooltipStyle":"position: fixed;visibility:hidden;padding: 5px;white-space: nowrap;font-family: verdana;font-size:14px;font-color:#000000;background-color: #f5f4ed;-moz-border-radius: 3px;-webkit-border-radius: 3px;border-radius: 3px;border: 1px solid #808074;box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);","events":{"dragStart":"function(params) {\n      if (params.nodes.length > 0)\n        this.setOptions({ physics: { enabled: true } });\n    }","dragEnd":"function(params) {\n      if (params.nodes.length > 0) {\n        var net = this;\n        setTimeout(function(){ net.setOptions({ physics: { enabled: false } }); }, 3000);\n      }\n    }","stabilizationIterationsDone":"function() {\n      this.setOptions({ physics: { enabled: false } });\n      window._visNetwork = this;\n    }"}}</script>
+<script>
+(function() {
+  var raw = JSON.parse(document.getElementById('network-data').textContent);
+  var modernPalette = {
+    anger: '#dc2626', fear: '#7c3aed', sadness: '#2563eb', disgust: '#16a34a',
+    surprise: '#d97706', anticipation: '#ea580c', joy: '#ca8a04', trust: '#0d9488', none: '#94a3b8'
+  };
+  var modernOriginalNodeStyles = {};
+  var modernOriginalEdgeStyles = {};
+  var modernNodeEmotions = {};
+  var modernNodeMeta = {};
+  var modernActiveEmotion = 'none';
+  var modernSelectedNodeId = null;
+  var network;
+
+  function frameToRows(frame) {
+    var keys = Object.keys(frame || {});
+    var len = keys.length ? frame[keys[0]].length : 0;
+    var rows = [];
+    for (var i = 0; i < len; i++) {
+      var row = {};
+      keys.forEach(function(key) { row[key] = frame[key][i]; });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function getModernFontSize(value) {
+    if (value >= 15) return 30;
+    if (value >= 9) return 26;
+    if (value >= 6) return 23;
+    return 20;
+  }
+
+  function getModernMatchedNodeIds(emotion) {
+    return Object.keys(modernNodeMeta).filter(function(id) {
+      var emotions = (modernNodeEmotions[id] || 'none').split(',');
+      return emotion === 'none' || emotions.indexOf(emotion) !== -1;
+    });
+  }
+
+  function escapeModernHtml(value) {
+    return String(value).replace(/[&<>"']/g, function(char) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+    });
+  }
+
+  function updateModernWordList(emotion) {
+    var list = document.getElementById('modernWordList');
+    var count = document.getElementById('modernWordCount');
+    var words = getModernMatchedNodeIds(emotion).map(function(id) {
+      return { id: id, label: modernNodeMeta[id].label, value: modernNodeMeta[id].value };
+    }).sort(function(a, b) { return b.value - a.value || a.label.localeCompare(b.label); });
+
+    count.innerText = words.length + (words.length === 1 ? ' word' : ' words');
+    list.innerHTML = words.slice(0, 80).map(function(word) {
+      var selectedClass = word.id === modernSelectedNodeId ? ' is-selected' : '';
+      return '<li class="word-list__item"><button class="word-list__button' + selectedClass +
+        '" type="button" data-node-id="' + escapeModernHtml(word.id) + '">' +
+        escapeModernHtml(word.label) + ' <span>(' + word.value + ')</span></button></li>';
+    }).join('');
+  }
+
+  function resetModernEdges(visibleIds) {
+    network.body.data.edges.update(network.body.data.edges.get().map(function(edge) {
+      var original = modernOriginalEdgeStyles[edge.id] || { width: Number(edge.width) || 1 };
+      var visible = !visibleIds || (visibleIds[edge.from] && visibleIds[edge.to]);
+      return { id: edge.id, color: { color: 'rgba(71,85,105,0.46)' }, width: original.width, hidden: !visible };
+    }));
+  }
+
+  function modernFilterEmotion(emotion) {
+    modernActiveEmotion = emotion;
+    modernSelectedNodeId = null;
+
+    var matchedIds = {};
+
+    network.body.data.nodes.get().forEach(function(node) {
+      var emotions = (modernNodeEmotions[node.id] || 'none').split(',');
+      var match = emotion === 'none' || emotions.indexOf(emotion) !== -1;
+      if (match) {
+        matchedIds[node.id] = true;
+      }
+    });
+
+    network.body.data.nodes.update(network.body.data.nodes.get().map(function(node) {
+      var style = modernOriginalNodeStyles[node.id] || { background: modernPalette.none, border: '#ffffff', fontColor: '#172033' };
+      var meta = modernNodeMeta[node.id] || { fontSize: 15 };
+      var isMatched = !!matchedIds[node.id];
+      var isMuted = emotion !== 'none' && !isMatched;
+      var activeColor = emotion === 'none' ? style.background : modernPalette[emotion] || style.background;
+
+      return {
+        id: node.id,
+        hidden: false,
+        color: {
+          background: isMatched ? activeColor : 'rgba(203,213,225,0.7)',
+          border: isMatched ? activeColor : 'rgba(148,163,184,0.85)',
+          highlight: { background: isMatched ? activeColor : 'rgba(203,213,225,0.85)', border: '#172033' },
+          hover: { background: isMatched ? activeColor : 'rgba(203,213,225,0.85)', border: '#172033' }
+        },
+        font: {
+          color: isMatched ? style.fontColor : '#64748b',
+          size: isMuted ? Math.max(meta.fontSize - 2, 16) : meta.fontSize,
+          strokeWidth: 4,
+          strokeColor: 'rgba(255,255,255,0.92)'
+        },
+        shadow: isMatched,
+        borderWidth: isMatched ? 1 : 1
+      };
+    }));
+
+    network.body.data.edges.update(network.body.data.edges.get().map(function(edge) {
+      var original = modernOriginalEdgeStyles[edge.id] || { width: Number(edge.width) || 1 };
+      var isConnectedToMatch = !!matchedIds[edge.from] || !!matchedIds[edge.to];
+      return {
+        id: edge.id,
+        hidden: false,
+        color: { color: emotion === 'none' ? original.color : isConnectedToMatch ? 'rgba(51,65,85,0.58)' : 'rgba(100,116,139,0.28)' },
+        width: emotion === 'none' ? original.width : isConnectedToMatch ? Math.max(original.width, 1.45) : Math.max(original.width * 0.5, 0.7)
+      };
+    }));
+
+    network.unselectAll();
+    document.querySelectorAll('#modernEmotionGrid .emotion-button').forEach(function(button) {
+      button.classList.toggle('is-active', button.dataset.emotion === emotion);
+    });
+    updateModernWordList(emotion);
+  }
+  function focusModernNode(nodeId) {
+    modernSelectedNodeId = nodeId;
+    var connectedIds = network.getConnectedNodes(nodeId);
+    var visibleIds = {};
+    visibleIds[nodeId] = true;
+    connectedIds.forEach(function(id) { visibleIds[id] = true; });
+    var emotionMatches = {};
+    getModernMatchedNodeIds(modernActiveEmotion).forEach(function(id) { emotionMatches[id] = true; });
+
+    network.body.data.nodes.update(network.body.data.nodes.get().map(function(node) {
+      var style = modernOriginalNodeStyles[node.id] || { background: modernPalette.none, border: '#ffffff', fontColor: '#172033' };
+      var isFocus = node.id === nodeId;
+      var isNeighbor = !!visibleIds[node.id];
+      var isEmotionMatch = !!emotionMatches[node.id];
+      var isVisible = isNeighbor || isEmotionMatch;
+      var meta = modernNodeMeta[node.id] || { fontSize: 15 };
+      return {
+        id: node.id,
+        hidden: !isVisible,
+        color: {
+          background: style.background,
+          border: isFocus ? '#111827' : isNeighbor ? '#2563eb' : style.border,
+          highlight: { background: style.background, border: '#111827' },
+          hover: { background: style.background, border: '#111827' }
+        },
+        font: { color: style.fontColor, size: isFocus ? Math.min(meta.fontSize + 4, 38) : isNeighbor ? Math.min(meta.fontSize + 2, 35) : meta.fontSize, strokeWidth: 4, strokeColor: 'rgba(255,255,255,0.92)' },
+        shadow: true,
+        borderWidth: isFocus ? 3 : isNeighbor ? 2 : 1
+      };
+    }));
+
+    network.body.data.edges.update(network.body.data.edges.get().map(function(edge) {
+      var isConnected = edge.from === nodeId || edge.to === nodeId;
+      var original = modernOriginalEdgeStyles[edge.id] || { width: Number(edge.width) || 1 };
+      var width = original.width;
+      var edgeVisible = visibleIds[edge.from] && visibleIds[edge.to];
+      return { id: edge.id, color: { color: isConnected ? 'rgba(37,99,235,0.82)' : 'rgba(100,116,139,0.32)' }, width: isConnected ? Math.max(width + 1.4, 2.6) : Math.max(width * 0.68, 0.9), hidden: !edgeVisible };
+    }));
+
+    network.selectNodes([nodeId]);
+    network.focus(nodeId, { scale: 1.25, animation: { duration: 650, easingFunction: 'easeInOutQuad' } });
+    updateModernWordList(modernActiveEmotion);
+  }
+
+  function runModernPhysics(duration) {
+    network.setOptions({ physics: { enabled: true } });
+    clearTimeout(window._modernPhysicsTimer);
+    window._modernPhysicsTimer = setTimeout(function() {
+      network.setOptions({ physics: { enabled: false } });
+      network.fit({ animation: { duration: 450, easingFunction: 'easeInOutQuad' } });
+    }, duration || 1600);
+  }
+
+  function init() {
+    if (!window.vis || !window.vis.Network) {
+      document.getElementById('loadingNote').textContent = 'Unable to load vis-network library. Please check internet access.';
+      return;
+    }
+
+    var nodeRows = frameToRows(raw.nodes);
+    var edgeRows = frameToRows(raw.edges);
+    var nodes = nodeRows.map(function(node) {
+      var emotion = node.main_emotion || 'none';
+      var color = modernPalette[emotion] || modernPalette.none;
+      var value = Number(node.value) || 0;
+      modernOriginalNodeStyles[node.id] = { background: color, border: '#ffffff', fontColor: '#172033' };
+      modernNodeEmotions[node.id] = node.emotions || 'none';
+      modernNodeMeta[node.id] = { label: node.label || node.id, value: value, fontSize: getModernFontSize(value) };
+      return {
+        id: node.id,
+        label: node.label || node.id,
+        value: value,
+        main_emotion: emotion,
+        emotions: node.emotions || 'none',
+        shape: 'dot',
+        color: { background: color, border: '#ffffff', highlight: { background: color, border: '#172033' }, hover: { background: color, border: '#172033' } },
+        font: { color: '#172033', size: getModernFontSize(value), face: 'Inter, Segoe UI, sans-serif', strokeWidth: 4, strokeColor: 'rgba(255,255,255,0.92)' },
+        shadow: { enabled: true, color: 'rgba(15,23,42,0.16)', size: 10, x: 0, y: 4 }
+      };
+    });
+
+    var edges = edgeRows.map(function(edge, index) {
+      var id = 'e' + index;
+      var width = Number(edge.width) || 1;
+      modernOriginalEdgeStyles[id] = { width: width };
+      return { id: id, from: edge.from, to: edge.to, width: width, title: edge.title || '', smooth: { enabled: true, type: 'dynamic', roundness: 0.2 }, color: { color: 'rgba(71,85,105,0.46)', highlight: 'rgba(37,99,235,0.82)', hover: 'rgba(37,99,235,0.68)', inherit: false } };
+    });
+
+    network = new vis.Network(document.getElementById('network'), { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) }, {
+      nodes: { borderWidth: 1, borderWidthSelected: 2, scaling: { min: 16, max: 46 } },
+      edges: { selectionWidth: 1.8, hoverWidth: 1.4 },
+      interaction: { hover: true, dragNodes: true, dragView: true, zoomView: true, tooltipDelay: 80, multiselect: false, navigationButtons: false, keyboard: false },
+      physics: { solver: 'forceAtlas2Based', minVelocity: 0.5, stabilization: { enabled: true, iterations: 300, fit: true }, forceAtlas2Based: { gravitationalConstant: -200, springLength: 60, springConstant: 0.1, damping: 0.3 } },
+      layout: { randomSeed: 42 }
+    });
+    window._visNetwork = network;
+    network.once('stabilizationIterationsDone', function() { network.setOptions({ physics: { enabled: false } }); });
+    network.on('dragStart', function(params) {
+      if (params.nodes.length > 0) {
+        clearTimeout(window._dragPhysicsTimer);
+        params.nodes.forEach(function(nodeId) {
+          network.body.data.nodes.update({ id: nodeId, fixed: { x: true, y: true } });
+        });
+        network.setOptions({ physics: { enabled: true } });
+      }
+    });
+    network.on('dragging', function(params) {
+      if (params.nodes.length > 0 && params.pointer && params.pointer.canvas) {
+        params.nodes.forEach(function(nodeId) {
+          network.body.data.nodes.update({
+            id: nodeId,
+            x: params.pointer.canvas.x,
+            y: params.pointer.canvas.y,
+            fixed: { x: true, y: true }
+          });
+        });
+      }
+    });
+    network.on('dragEnd', function(params) {
+      if (params.nodes.length > 0) {
+        params.nodes.forEach(function(nodeId) {
+          var position = network.getPositions([nodeId])[nodeId];
+          network.body.data.nodes.update({ id: nodeId, x: position.x, y: position.y, fixed: { x: true, y: true } });
+        });
+        clearTimeout(window._dragPhysicsTimer);
+        window._dragPhysicsTimer = setTimeout(function() {
+          network.setOptions({ physics: { enabled: false } });
+        }, 3000);
+      }
+    });
+    network.on('doubleClick', function(params) {
+      if (params.nodes.length > 0) {
+        network.body.data.nodes.update({ id: params.nodes[0], fixed: { x: false, y: false } });
+        runModernPhysics(1800);
+      }
+    });
+    document.getElementById('loadingNote').style.display = 'none';
+    modernFilterEmotion('none');
+  }
+
+  document.getElementById('modernRepulsion').addEventListener('input', function() {
+    document.getElementById('modernRepVal').innerText = this.value;
+    network.setOptions({ physics: { enabled: true, forceAtlas2Based: { gravitationalConstant: parseFloat(this.value) } } });
+    runModernPhysics(1300);
+  });
+
+  document.getElementById('modernLength').addEventListener('input', function() {
+    document.getElementById('modernLenVal').innerText = this.value;
+    network.setOptions({ physics: { enabled: true, forceAtlas2Based: { springLength: parseFloat(this.value) } } });
+    runModernPhysics(1300);
+  });
+
+  document.getElementById('modernRelayout').addEventListener('click', function() { runModernPhysics(2600); });
+  document.getElementById('modernEmotionGrid').addEventListener('click', function(event) {
+    var button = event.target.closest('[data-emotion]');
+    if (button) modernFilterEmotion(button.dataset.emotion);
+  });
+  document.getElementById('modernWordList').addEventListener('click', function(event) {
+    var button = event.target.closest('[data-node-id]');
+    if (button) focusModernNode(button.dataset.nodeId);
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>
